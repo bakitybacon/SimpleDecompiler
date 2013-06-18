@@ -2,7 +2,6 @@ package attributes;
 
 import java.nio.ByteBuffer;
 import constpool.ConstantPool;
-import constpool.UTF8Info;
 
 public class ConstantValue implements Attribute
 {
@@ -46,17 +45,16 @@ public class ConstantValue implements Attribute
 	@Override
 	public void parseValues(ConstantPool cp) 
 	{
-		getName();
+		getValue();
 	}
 	
 	/**
-	 * A method to return the name of the constant
-	 * Uses the ConstantPool 
+	 * A method to return the type of this object
 	 * @return the name of this Object
 	 */
-	public String getName()
+	public String getValue()
 	{
-		return ((UTF8Info)cp.get(constindex)).getValueAsString(cp);
+		return cp.get(constindex-1).getValueAsString(cp);
 	}
 	
 	/**
@@ -65,6 +63,6 @@ public class ConstantValue implements Attribute
 	 */
 	public String toString()
 	{
-		return getClass().getName()+"[Value:"+getName()+"]";
+		return getClass().getName()+"[Value:"+getValue()+"]";
 	}
 }

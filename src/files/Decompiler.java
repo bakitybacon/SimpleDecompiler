@@ -7,6 +7,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import attributes.Attribute;
+import attributes.Code;
+import attributes.ConstantValue;
 import attributes.DefaultAttribute;
 
 import others.FieldInfo;
@@ -59,6 +61,33 @@ public class Decompiler implements AccessFlags,ConstantTags
 	public static ConstantPool cpool;
 	
 	/**
+	 * The array of fields, for later use
+	 */
+	static FieldInfo[] jolly;
+	
+	/**
+	 * The array of methods, for later use
+	 */
+	static MethodInfo[] meths;
+	
+	/**
+	 * The array of Attribute, for (maybe) later use
+	 */
+	static Attribute[] attrs;
+	
+	/**
+	 * A string with the name of this class
+	 */
+	static String thclass;
+	
+	/**
+	 * A string with the name of the super class
+	 */
+	static String suclass;
+	
+	static ArrayList<String> interfacearr = new ArrayList<>();
+	
+	/**
 	 * A array of classes for some epic reflection
 	 */
 	@SuppressWarnings("rawtypes")
@@ -74,16 +103,18 @@ public class Decompiler implements AccessFlags,ConstantTags
 	 */
 	public static void main(String[] args) throws Exception
 	{
+		//FIXME another one
 		if(args.length == 0)
 		{
 			System.out.println("usage: Decompiler [file] [options]");
+			decompile(new File("res/EmeraldRandomizerApp.class"));
 			System.exit(0);
 		}
 		String arg1 = args[0];
 		try
 		{
 			if(args.length == 1)
-				readFile(new File(System.getProperty("user.dir")+"/"+arg1));
+				decompile(new File(System.getProperty("user.dir")+"/"+arg1));
 			System.exit(0);
 		}
 		catch(IOException e)
@@ -110,7 +141,7 @@ public class Decompiler implements AccessFlags,ConstantTags
 		}
 		try
 		{
-			readFile(new File(System.getProperty("user.dir")+"/"+arg1));
+			decompile(new File(System.getProperty("user.dir")+"/"+arg1));
 		}
 		catch(IOException e)
 		{
@@ -265,13 +296,19 @@ public class Decompiler implements AccessFlags,ConstantTags
 		short tscl = thiscl.getShort();
 		System.out.print("This class is: ");
 		System.out.println(cpool.get(tscl-1).getValueAsString(cpool).replaceAll("/", "."));
+		thclass = cpool.get(tscl-1).getValueAsString(cpool).replaceAll("/", ".");
 		
 		bis.read(array);
 		ByteBuffer supercl = ByteBuffer.wrap(array);
 		short scl = supercl.getShort();
 		System.out.print("Super class is: ");
-		System.out.println(cpool.get(scl-1).getValueAsString(cpool).replaceAll("/", "."));
-		
+		if(scl == 0)
+			suclass = "";
+		else
+		{
+			System.out.println(cpool.get(scl-1).getValueAsString(cpool).replaceAll("/", "."));
+			suclass = cpool.get(scl-1).getValueAsString(cpool).replaceAll("/", ".");
+		}
 		bis.read(array);
 		ByteBuffer interfaces = ByteBuffer.wrap(array);
 		short inter = interfaces.getShort();
@@ -286,13 +323,15 @@ public class Decompiler implements AccessFlags,ConstantTags
 			short charles = leint.getShort();
 			
 			System.out.println("Interface: "+cpool.get(charles - 1).getValueAsString(cpool));
+			interfacearr.add(cpool.get(charles - 1).getValueAsString(cpool));
+			//TODO a marker
 		}
 		
 		bis.read(array);
 		ByteBuffer fieldsc = ByteBuffer.wrap(array);
 		short fieldscount = fieldsc.getShort();
 		System.out.println("There are "+fieldscount+" field(s).");
-		FieldInfo[] jolly = new FieldInfo[fieldscount];
+		jolly = new FieldInfo[fieldscount];
 		
 		for(int i = 0; i < fieldscount;)
 		{
@@ -341,7 +380,7 @@ public class Decompiler implements AccessFlags,ConstantTags
 		short methcount = ByteBuffer.wrap(methods).getShort();
 		System.out.println("There are "+methcount+" method(s)");
 		
-		MethodInfo[] meths = new MethodInfo[methcount];
+		meths = new MethodInfo[methcount];
 		
 		for(int i = 0; i < methcount;)
 		{
@@ -389,7 +428,7 @@ public class Decompiler implements AccessFlags,ConstantTags
 		bis.read(attribs);
 		short attrlen = ByteBuffer.wrap(attribs).getShort();
 		System.out.println("There are "+attrlen+" attribute(s).");
-		Attribute[] attrs = new Attribute[attrlen];
+		attrs = new Attribute[attrlen];
 		for(int j = 0; j < attrs.length;)
 		{
 			byte[] take6 = new byte[6];
@@ -405,6 +444,151 @@ public class Decompiler implements AccessFlags,ConstantTags
 		System.out.println(Arrays.toString(attrs));
 		
 		bis.close();
+	}
+	
+	
+	public static void decompile(File m) throws Exception
+	{
+		//XXX another marker
+		readFile(m);
+		
+		for(int i = 0 ; i < 5 ; i++)
+			System.out.println();
+		
+		String fullstuff = "";
+		
+		String pubstring = isPublic ? "public" : "";
+		String clastring = isInterface ? "interface" : "class";
+		String pack = thclass.replaceAll("([^\\.]+)\\..+","$1");
+		thclass = thclass.replaceAll("[^\\.]+\\.(.+)","$1");
+		String interfacestring = "";
+		if(pack.length() != 0)
+			fullstuff += "package "+pack+";\n";
+		if(interfacearr.size() != 0)
+		{
+			interfacestring += "implements ";
+			
+			for(int i = 0; i < interfacearr.size();i++)
+			{
+				interfacestring += interfacearr.get(i);
+				if(i+1 < interfacearr.size())
+					interfacestring += ",";
+			}
+		}
+		
+		String first = suclass.equals("java.lang.Object") ? pubstring+" "+clastring+" "+thclass : pubstring+" "+clastring+" "+thclass+" extends "+suclass;
+		first += " "+interfacestring;
+		first = first.replaceAll("\\s+", " ");
+		first = first.replaceAll("/",".");
+		first = first.trim();
+		fullstuff += first + "\n";
+		
+		fullstuff += "{\n";
+		{
+			for(FieldInfo fi : jolly)
+			{
+				fullstuff += "\t"+fi.getAccess() + " "+fi.getVariableType()+" "+fi.getName();
+				for(Attribute at : fi.attribs)
+				{
+					if(at.getClass().getSimpleName().equals("ConstantValue") && fi.isStatic)
+					{
+						//This field must be static, because initializers should deal with non static fields.
+						//however, ConstantValue is randomly given to non-static fields. IDK why.
+						ConstantValue dat = (ConstantValue)at;
+						fullstuff += " = "+dat.getValue();
+					}
+					fullstuff += ";\n";
+				}
+			}
+			for(MethodInfo mi : meths)
+			{
+				if(mi.getName().equals("<init>"))
+				{
+					fullstuff += "\t"+(mi.getAccess()+" "+thclass+"("+mi.getParameters()+");").trim()+"\n";
+					for(Attribute at : mi.attrs)
+					{
+						if(at.getClass().getSimpleName().equals("Code"))
+						{
+							Code cd = (Code)at;
+							String op = cd.getOpCodes();
+							Scanner sc = new Scanner(op);
+							sc.useDelimiter("\n");
+							Stack<Object> st = new Stack<>();
+							ArrayList<Object> localvars = new ArrayList<>();
+
+							while(sc.hasNext())
+							{
+								String stuff = sc.next();
+								if(stuff.equals("nop"))
+									continue;
+								if(stuff.matches("const"))
+								{
+									if(stuff.startsWith("a"))
+										st.push(null);
+									else
+									{
+										String barley = stuff.replaceAll("const_(.+)", "$1");
+										if(barley.equals("m1"))
+											st.push(-1);
+										else
+											st.push(Integer.parseInt(barley));
+									}
+									continue;
+								}
+								if(stuff.matches("load"))
+								{
+									String ty = stuff.replaceAll("(.+)load","$1");
+									Class<?> cakers = null;
+									switch (ty)
+									{
+										case "i": cakers = int.class;
+										case "l": cakers = long.class;
+										case "f": cakers = float.class;
+										case "d": cakers = double.class;
+										case "a": cakers = Object.class;
+									}
+									String var = stuff.replaceAll("load(.+)", "$1");
+									if(var.equals(""))
+									{
+										int index = (int)st.pop();
+										st.push(cakers.cast(localvars.get(index)));
+									}
+									else
+									{
+										int index = Integer.parseInt(var);
+										st.push(cakers.cast(localvars.get(index)));
+									}
+									continue;
+								}
+								if(stuff.matches("store"))
+								{
+									String var = stuff.replaceAll("store(.+)", "$1");
+									if(var.equals(""))
+									{
+										String ls = stuff.replaceAll("\\((.+)\\)", "$1");
+										localvars.add(Integer.parseInt(ls), st.pop());
+									}
+									else
+									{
+										int index = Integer.parseInt(var);
+										localvars.add(index, st.pop());
+									}
+									continue;
+								}
+							}
+							sc.close();
+						}
+					}
+				}
+				else
+					fullstuff += "\t"+mi.getAccess() + " "+mi.getReturnType()+ " " +mi.getName()+"("+mi.getParameters()+")"+";\n";
+			}
+		}
+		fullstuff += "}\n";
+		
+		fullstuff = fullstuff.replaceAll(pack+"\\.", "");
+		fullstuff = fullstuff.replaceAll("java.lang.", "");
+		System.out.println(fullstuff);
 	}
 	
 	/**

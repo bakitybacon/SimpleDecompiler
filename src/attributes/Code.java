@@ -2,11 +2,14 @@ package attributes;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
 import java.util.Arrays;
+import java.util.HashMap;
 
 import constpool.ConstantPool;
+import files.OpCodeLength;
 
 /**
  * A representation of the Code Attribute in Java Class files.
@@ -49,7 +52,10 @@ public class Code implements Attribute
 	 * The ConstantPool the values will be gotten from.
 	 */
 	public final ConstantPool cp;
-	
+	/**
+	 * 
+	 */
+	public final short[] codeshorts;
 	/**
 	 * A simple constructor.
 	 * @param maxstack Highest stack amount
@@ -72,6 +78,8 @@ public class Code implements Attribute
 		attributes = new Attribute[extablelength];
 		this.cp = cp;
 		parseValues(cp);
+		codeshorts = byteArrayToShortArray(codetable);
+		parseOpCodes();
 	}
 	
 	/**
@@ -105,14 +113,18 @@ public class Code implements Attribute
 		attrtable = Arrays.copyOfRange(all, 12 + length + exlength, all.length);
 		this.cp = cp;
 		parseValues(cp);
+		codeshorts = byteArrayToShortArray(codetable);
+		parseOpCodes();
 	}
 	/**
 	 * toString method that qualifies all tables, and writes the stack and locals.
 	 */
 	public String toString()
 	{
-		return getClass().getName() + "[Max Stack: "+maxstack+", Max Locals: "+maxlocals+", Code Table: "+Arrays.toString(codetable)+
-				", Exception Table: "+Arrays.toString(extable)+", Attribute Table: " + Arrays.toString(attributes)+"]";
+		
+		return getClass().getName() + "[Max Stack: "+maxstack+", Max Locals: "+maxlocals+", Code Table: "+
+				shortArrayToHexString(codeshorts)+", Exception Table: "+Arrays.toString(extable)+
+				", Attribute Table: " + Arrays.toString(attributes)+"]";
 	}
 	
 	/**
@@ -163,5 +175,82 @@ public class Code implements Attribute
 
 			attributes[i] = at;
 		}
+	}
+	
+	public short[] byteArrayToShortArray(byte[] b)
+	{
+	    short[] shorts = new short[b.length];
+
+	    for (int i = 0; i < b.length; i++) 
+	    {
+	    	if(b[i] >= 0)
+	    		shorts[i] = (short)b[i];
+	    	else
+	    		shorts[i] = (short)(256 + b[i]);
+	    }
+	    return shorts;
+	}
+	public String shortArrayToHexString(short[] shorts)
+	{
+		if(shorts.length == 0)
+			return "[]";
+		String collect = "[";
+		for(int i = 0; i < shorts.length;i++)
+		{
+			BigInteger bigint = BigInteger.valueOf(shorts[i]);
+			collect += bigint.toString(16);
+			collect += ", ";
+		}
+		collect = collect.substring(0, collect.length() - 2);
+		collect += "]";
+		return collect.toUpperCase();
+	}
+	
+	public void parseOpCodes()
+	{
+		byte[] thunk = codetable;
+		byte[] thi = codetable;
+		short pos = 0;
+		HashMap<Short,String> daft = OpCodeLength.getHash();
+		System.out.println("------------ STARTING METHOD -----------");
+		while(pos < codetable.length)
+		{
+			short x = codeshorts[pos];
+			System.out.println("The length is :"+OpCodeLength.getLength(x, thi, pos));
+			System.out.println("The opcode is :"+daft.get(x));
+			pos += 1 + OpCodeLength.getLength(x, thi, pos);
+			System.out.println("Position:" + pos);
+			System.out.println("this length :"+thi.length);
+			if(thi.length == 0)
+				break;
+			thi = Arrays.copyOfRange(thunk,pos,thunk.length);
+		}
+		System.out.println("-------------- END METHOD --------------");
+	}
+	public String getOpCodes()
+	{
+		byte[] thunk = codetable;
+		byte[] thi = codetable;
+		short pos = 0;
+		String cake = "";
+		HashMap<Short,String> daft = OpCodeLength.getHash();
+		while(pos < codetable.length)
+		{
+			short x = codeshorts[pos];
+			cake += daft.get(x);
+			if(OpCodeLength.getLength(x, thi, pos) > 0)
+			{
+				cake += "(";
+				for(int i = 1 ; i <= OpCodeLength.getLength(x,thi,pos);i++)
+					cake += codeshorts[pos + i] +", ";
+				cake += ")";
+			}
+			cake += "\n";
+			pos += 1 + OpCodeLength.getLength(x, thi, pos);
+			if(thi.length == 0)
+				break;
+			thi = Arrays.copyOfRange(thunk,pos,thunk.length);
+		}
+		return cake;
 	}
 }

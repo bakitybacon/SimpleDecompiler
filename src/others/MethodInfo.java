@@ -137,6 +137,7 @@ public class MethodInfo implements AccessFlags
 	{
 		return ((UTF8Info)cpool.get(dindex-1)).getValueAsString(null);
 	}
+	
 	/**
 	 * A method that takes some binary values from attrtable and makes into Attributes.
 	 * Uses the DefaultAttribute class.
@@ -159,6 +160,96 @@ public class MethodInfo implements AccessFlags
 			j++;
 		}
 	}
+	
+	public String getReturnType()
+	{
+		String desc = getDescriptor();
+		desc = desc.replaceAll("\\([^\\)]{0,}\\)", "");
+		//That radical regex just removed everything in parentheses. Like a boss.
+		if(desc.equals("V"))
+			return "void";
+		return InfoParser.getVariableType(desc);
+	}
+	
+	public String getParameters()
+	{
+		String desc = getDescriptor();
+		desc = desc.replaceAll("\\(([^\\)]{0,})\\).+", "$1");
+		//That radical regex just replaced the string with whatever was in parentheses. Like a boss.
+		if(desc.equals(""))
+			return desc;
+		
+		String fulldesc = "";
+		String toadd = "";
+		
+		int pos = 0;
+		
+		
+		for(;pos < desc.toCharArray().length;pos++)
+		{
+			char c = desc.toCharArray()[pos];
+			if(c == '[')
+			{
+				toadd += "[]";
+				continue;
+			}
+			if(c != 'L')
+			{
+				fulldesc += InfoParser.getVariableType(c + "");
+				fulldesc += toadd;
+				toadd = "";
+				fulldesc += ", ";
+				continue;
+			}
+			String charly = "";
+			pos++;
+			//this char is now L, indicating a class
+			for(; pos < desc.toCharArray().length;pos++)
+			{
+				if(desc.toCharArray()[pos] == ';')
+					break;
+				charly += desc.toCharArray()[pos]; 
+			}
+			
+			fulldesc += charly + toadd;
+			fulldesc += ", ";
+			toadd = "";
+			pos++;
+		}
+		
+		fulldesc = fulldesc.trim();
+		if(fulldesc.endsWith(","))
+			fulldesc = fulldesc.substring(0, fulldesc.length() - 1);
+		return fulldesc.replaceAll("/", ".");
+	}
+	
+	public String getAccess()
+	{
+		String stuff = "";
+		parseAccessFlags();
+		if(isPublic)
+			stuff += " public ";
+		else if(isPrivate)
+			stuff += " private ";
+		else if(isProtected)
+			stuff += " protected ";
+		if(isStatic)
+			stuff += " static ";
+		if(isFinal)
+			stuff += " final ";
+		if(isSynchronized)
+			stuff += " synchronized ";
+		if(isNative)
+			stuff += " native ";
+		if(isAbstract)
+			stuff += " abstract ";
+		
+		stuff = stuff.replaceAll("\\s+", " ");
+			
+		return stuff.trim();
+			
+	}
+	
 	/**
 	 * The toString method that returns the class name, access flags, name, descriptor, and attributes
 	 */

@@ -255,4 +255,33 @@ public class FieldInfo implements AccessFlags
 		return getClass().getName()+"[Access Flags:{"+parseAccessFlagsB()+
 				"},Name:"+getName()+",Descriptor:"+getDescriptor()+",Attributes:"+Arrays.toString(attribs)+"]";
 	}
+	
+	public String getAccess()
+	{
+		String stuff = "";
+		parseAccessFlags();
+		if(isPublic)
+			stuff += " public ";
+		else if(isPrivate)
+			stuff += " private ";
+		else if(isProtected)
+			stuff += " protected ";
+		if(isStatic)
+			stuff += " static ";
+		if(isFinal)
+			stuff += " final ";
+		else if(isTransient)
+			stuff += " transient ";
+		if(isVolatile)
+			stuff += " volatile ";
+		
+		stuff = stuff.replaceAll("\\s+", " ");
+			
+		return stuff.trim();
+			
+	}
+	public String getVariableType()
+	{
+		return InfoParser.getVariableType(getDescriptor());
+	}
 }

@@ -43,7 +43,7 @@ public class Exceptions implements Attribute
 	{
 		this.exlength = exlength;
 		table = extable;
-		info = new ClassInfo[exlength/2];
+		info = new ClassInfo[exlength];
 		this.cp = cp;
 		parseValues(cp);
 	}
@@ -63,12 +63,14 @@ public class Exceptions implements Attribute
 	 */
 	public void parseValues(ConstantPool cp) 
 	{
-		for(int i = 0; i < table.length;i+= 2)
+		System.out.println(Arrays.toString(table));
+		int classy = 0;
+		for(int i = 0; i < table.length;i+=2)
 		{
-			ByteBuffer bb = ByteBuffer.wrap(Arrays.copyOfRange(table,i,i+2));
-			System.out.println(bb.getShort());
+			ByteBuffer bb = ByteBuffer.wrap(new byte[]{table[i],table[i+1]});
 			ClassInfo ci = (ClassInfo)cp.get(bb.getShort()-1);
-			info[i] = ci;
+			info[classy] = ci;
+			classy++;
 		}
 	}
 	
