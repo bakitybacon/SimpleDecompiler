@@ -8,7 +8,7 @@ import java.nio.*;
  * @author Fleur
  *
  */
-public class IntegerInfo implements ConstantType 
+public class IntegerInfo implements ConstantType, NumInfo
 {
 	/**
 	 * The amount of bytes this class needs
@@ -93,5 +93,10 @@ public class IntegerInfo implements ConstantType
 	public String toString()
 	{
 		return getClass().getSimpleName() + ": "+getValueAsString(null);
+	}
+	@Override
+	public String getString() 
+	{
+		return getValueAsString(null);
 	}
 }

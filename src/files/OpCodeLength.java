@@ -65,17 +65,27 @@ public class OpCodeLength implements OpCodes
 		//This shouldn't happen. Unless the opcode is wrong.
 		return 0xDEADBEEF;
 	}
+	
 	public static int getLength(short op,byte[] next,short pos)
 	{
 		return new OpCodeLength().getLengthOf(op,next,pos);
 	}
 	public static HashMap<Short,String> getHash()
 	{
+		return daftpunk;
+	}
+	public static HashMap<Short,String> daftpunk = new HashMap<>();
+	static
+	{
 		for(int i = 0; i < codes.length;i++)
 		{
 			daftpunk.put(codes[i], names[i]);
 		}
-		return daftpunk;
 	}
-	public static HashMap<Short,String> daftpunk = new HashMap<>();
+	
+	public static void main(String[]args)
+	{
+		OpCodeLength oc = new OpCodeLength();
+		System.out.println(oc.getLengthOf((short)0xb2,new byte[]{},(short)0));
+	}
 }

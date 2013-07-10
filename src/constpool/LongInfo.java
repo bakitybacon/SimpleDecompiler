@@ -8,7 +8,7 @@ import java.nio.*;
  * @author Fleur
  *
  */
-public class LongInfo implements ConstantType 
+public class LongInfo implements ConstantType, NumInfo 
 {
 
 	/**
@@ -91,5 +91,10 @@ public class LongInfo implements ConstantType
 	public String toString()
 	{
 		return getClass().getSimpleName() + ": "+getValueAsString(null);
+	}
+	@Override
+	public String getString() 
+	{
+		return getValueAsString(null);
 	}
 }

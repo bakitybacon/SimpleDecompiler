@@ -1,5 +1,7 @@
 package constpool;
 
+import others.InfoParser;
+
 /**
  * A class that models the FieldRefInfo in the class.
  * Most methods are in AbstractReference.
@@ -24,6 +26,20 @@ public class FieldRefInfo extends AbstractReference
 	public FieldRefInfo(byte[] b)
 	{
 		super(b);
+	}
+	
+	public String getVariableType(ConstantPool cpool)
+	{
+		String desc = getValueAsString(cpool);
+		desc = desc.replaceAll(".+:","");
+		return InfoParser.getVariableType(desc);
+	}
+	
+	public String getName(ConstantPool cpool)
+	{
+		String name = getValueAsString(cpool);
+		name = name.replaceAll(":.+","");
+		return name.replaceAll("/",".");
 	}
 
 

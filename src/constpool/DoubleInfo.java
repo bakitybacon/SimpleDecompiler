@@ -8,7 +8,7 @@ import java.nio.*;
  * @author Fleur
  *
  */
-public class DoubleInfo implements ConstantType 
+public class DoubleInfo implements ConstantType, NumInfo
 {
 
 	/**
@@ -90,5 +90,10 @@ public class DoubleInfo implements ConstantType
 	public String toString()
 	{
 		return getClass().getSimpleName() + ": "+getValueAsString(null);
+	}
+	@Override
+	public String getString() 
+	{
+		return getValueAsString(null);
 	}
 }

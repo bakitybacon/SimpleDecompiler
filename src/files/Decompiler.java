@@ -1,20 +1,38 @@
 package files;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Scanner;
+import java.util.Stack;
 
+import others.FieldInfo;
+import others.MethodInfo;
 import attributes.Attribute;
 import attributes.Code;
 import attributes.ConstantValue;
 import attributes.DefaultAttribute;
-
-import others.FieldInfo;
-import others.MethodInfo;
-
-import constpool.*;
+import attributes.LocalVariableTable;
+import constpool.ClassInfo;
+import constpool.ConstantPool;
+import constpool.ConstantType;
+import constpool.DoubleInfo;
+import constpool.FieldRefInfo;
+import constpool.FloatInfo;
+import constpool.IntegerInfo;
+import constpool.InterfaceMethodRefInfo;
+import constpool.LongInfo;
+import constpool.MethodRefInfo;
+import constpool.NameAndTypeInfo;
+import constpool.StringInfo;
+import constpool.UTF8Info;
 
 /**
  * This class ties all the Attributes, Constants, Methods, and Fields together
@@ -23,7 +41,7 @@ import constpool.*;
  * @author Fleur
  *
  */
-public class Decompiler implements AccessFlags,ConstantTags
+public class Decompiler implements AccessFlags,ConstantTags, ArrayTags
 {
 	/**
 	 * An array of the bitmasks found in the ConstantTags class
@@ -87,6 +105,8 @@ public class Decompiler implements AccessFlags,ConstantTags
 	
 	static ArrayList<String> interfacearr = new ArrayList<>();
 	
+	static HashMap<Integer,String> arraytags = new HashMap<>();
+	
 	/**
 	 * A array of classes for some epic reflection
 	 */
@@ -103,11 +123,16 @@ public class Decompiler implements AccessFlags,ConstantTags
 	 */
 	public static void main(String[] args) throws Exception
 	{
+		for(int i = 0; i < ArrayTags.classes.length;i++)
+		{
+			arraytags.put(ArrayTags.classes[i], ArrayTags.results[i]);
+		}
 		//FIXME another one
 		if(args.length == 0)
 		{
 			System.out.println("usage: Decompiler [file] [options]");
-			decompile(new File("res/EmeraldRandomizerApp.class"));
+			
+			decompile(new File("bin/Exaja.class"));
 			System.exit(0);
 		}
 		String arg1 = args[0];
@@ -139,6 +164,8 @@ public class Decompiler implements AccessFlags,ConstantTags
 			else
 				System.out.println("Unrecognized Option: -"+op);
 		}
+		
+
 		try
 		{
 			decompile(new File(System.getProperty("user.dir")+"/"+arg1));
@@ -173,7 +200,7 @@ public class Decompiler implements AccessFlags,ConstantTags
 		BufferedInputStream bis = new BufferedInputStream(new FileInputStream(f));
 		byte[] steve = new byte[4];
 		bis.read(steve);
-		String jake = "0x" +bytesToHex(steve);
+		String jake = "0x" +bytesToHex(steve,true);
 		if(!jake.equals("0xCAFEBABE"))
 		{
 			System.out.println("Likely not a Java class file. Aborting...");
@@ -194,7 +221,7 @@ public class Decompiler implements AccessFlags,ConstantTags
 		byte[] constant_pool_length = new byte[2];
 		bis.read(constant_pool_length);
 		int constpoollength = Integer.parseInt(
-				bytesToHex(constant_pool_length),16);
+				bytesToHex(constant_pool_length,true),16);
 		System.out.println("Constant Pool Length: "+constpoollength);
 		
 		//length is one less because of internal array being used.
@@ -462,7 +489,7 @@ public class Decompiler implements AccessFlags,ConstantTags
 		String pack = thclass.replaceAll("([^\\.]+)\\..+","$1");
 		thclass = thclass.replaceAll("[^\\.]+\\.(.+)","$1");
 		String interfacestring = "";
-		if(pack.length() != 0)
+		if(pack.length() != 0 && !pack.equals(thclass))
 			fullstuff += "package "+pack+";\n";
 		if(interfacearr.size() != 0)
 		{
@@ -490,105 +517,513 @@ public class Decompiler implements AccessFlags,ConstantTags
 				fullstuff += "\t"+fi.getAccess() + " "+fi.getVariableType()+" "+fi.getName();
 				for(Attribute at : fi.attribs)
 				{
-					if(at.getClass().getSimpleName().equals("ConstantValue") && fi.isStatic)
+					if(at != null && at.getClass().getSimpleName().equals("ConstantValue") && fi.isStatic)
 					{
 						//This field must be static, because initializers should deal with non static fields.
 						//however, ConstantValue is randomly given to non-static fields. IDK why.
 						ConstantValue dat = (ConstantValue)at;
 						fullstuff += " = "+dat.getValue();
 					}
-					fullstuff += ";\n";
 				}
+				fullstuff += ";\n";
 			}
 			for(MethodInfo mi : meths)
 			{
-				if(mi.getName().equals("<init>"))
+				if(mi.isAbstract)
+				{
+					fullstuff += "\t"+mi.getAccess() + " "+mi.getReturnType()+ " " +mi.getName()+"("+mi.getParameters()+")"+";\n";
+					continue;
+				}
+				if(mi.getName().startsWith("<init>"))
 				{
 					fullstuff += "\t"+(mi.getAccess()+" "+thclass+"("+mi.getParameters()+");").trim()+"\n";
+					for(Attribute at : mi.attrs)
+					{
+						
+						//String fullcode = "";
+						if(at.getClass().getSimpleName().equals("Code"))
+						{
+							Code cd = (Code)at;
+							String op = cd.getOpCodes();
+							System.out.println(op);
+							Scanner sc = new Scanner(op);
+							sc.useDelimiter("\n");
+							Stack<Object> st = new Stack<>();
+							ArrayList<Object> localvars = new ArrayList<>();
+							HashMap<String,Integer> localvarnames = new HashMap<>();
+							
+							while(sc.hasNext())
+							{
+								if(sc.next().matches("^getstatic"))
+								{
+									String bc = sc.next();
+									String b1 = bc.replaceFirst("\\(([A-Fa-f0-9]+)", "$1");
+									byte one = Byte.parseByte(b1);
+									b1 = bc.replaceFirst("\\([^,]+, (.+)\\)", "$1");
+									byte two = Byte.parseByte(b1);
+									st.push(cpool.get(ByteBuffer.wrap(new byte[]{one,two}).getShort()));
+								}
+							}
+
+							sc.close();
+						}
+						
+					}
+					
+				}
+				else
+				{	
+					if(mi.getName().equals("<clinit>"))
+						fullstuff += "\tstatic\n";
+					else	
+						fullstuff += "\t"+mi.getAccess() + " "+mi.getReturnType()+ " " +mi.getName()+"("+mi.getParameters()+")"+"\n";
+					fullstuff+="\t{\n";
 					for(Attribute at : mi.attrs)
 					{
 						if(at.getClass().getSimpleName().equals("Code"))
 						{
 							Code cd = (Code)at;
 							String op = cd.getOpCodes();
+							System.out.println(op);
 							Scanner sc = new Scanner(op);
-							sc.useDelimiter("\n");
-							Stack<Object> st = new Stack<>();
-							ArrayList<Object> localvars = new ArrayList<>();
 
+							Stack<Object> st = new Stack<>();
+							HashMap<Integer,String> localvars = new HashMap<>();
+							
+							
 							while(sc.hasNext())
 							{
-								String stuff = sc.next();
-								if(stuff.equals("nop"))
-									continue;
-								if(stuff.matches("const"))
+								String cake = "";
+								cake = sc.nextLine();
+								System.out.println("Cake is "+cake);
+								if(cake.matches("^getstatic.+$"))
 								{
-									if(stuff.startsWith("a"))
+									System.out.println("STUFFF LELELELE!");
+									
+									byte one = Byte.parseByte(sc.nextLine());
+									byte two = Byte.parseByte(sc.nextLine());
+									short death = ByteBuffer.wrap(new byte[]{one,two}).getShort();
+									System.out.println("One is "+one);
+									System.out.println("Two is "+two);
+									System.out.println("Death is "+death);
+									st.push(cpool.get(death-1));
+									System.out.println("The stack is now: "+st);
+								}
+								if(cake.matches("^invokevirtual.+$"))
+								{
+									System.out.println("glitschmoab");
+									short one = Short.parseShort(sc.nextLine());
+									short two = Short.parseShort(sc.nextLine());
+									short death = ByteBuffer.wrap(new byte[]{(byte)one,(byte)two}).getShort();
+									System.out.println("One is "+one);
+									System.out.println("Two is "+two);
+									
+									System.out.println("Death is "+death);
+									
+									ArrayList<Object> methodargs = new ArrayList<>();
+									
+									while(!st.isEmpty() && !( st.peek() instanceof FieldRefInfo))
+									{
+										methodargs.add(st.pop());
+									}
+									
+									MethodRefInfo mri = (MethodRefInfo)cpool.get(death-1);
+									FieldRefInfo fi = (FieldRefInfo)st.pop();
+									
+									fullstuff += "\t\t" + fi.getName(cpool) + "." + mri.getMethodName(cpool)+"(";
+									for(Object o : methodargs)
+										fullstuff += o + ",";
+									if(fullstuff.endsWith(","))
+										fullstuff = fullstuff.substring(0,fullstuff.length() - 1);
+									fullstuff += ");\n";
+								}
+								//opcodes: 00
+								if(cake.equals("nop"))
+									continue;
+								
+								//opcodes: 01 - 0F
+								if(cake.matches(".const_.+"))
+								{
+									if(cake.startsWith("a"))
 										st.push(null);
 									else
 									{
-										String barley = stuff.replaceAll("const_(.+)", "$1");
+										String barley = cake.replaceAll(".const_(.+)", "$1");
 										if(barley.equals("m1"))
 											st.push(-1);
 										else
-											st.push(Integer.parseInt(barley));
+										{
+											int x = Integer.parseInt(barley);
+											String giv = cake.replaceAll("(.)const_.+", "$1");
+											if(giv.equals("f"))
+												st.push((float)x);
+											else if (giv.equals("l"))
+												st.push((long)x);
+											else if (giv.equals("d"))
+												st.push((double)x);
+											else
+												st.push(x);
+										}
+										System.out.println("The stack is now: "+st);
 									}
 									continue;
 								}
-								if(stuff.matches("load"))
+								//opcodes : 10
+								if(cake.equals("bipush("))
 								{
-									String ty = stuff.replaceAll("(.+)load","$1");
-									Class<?> cakers = null;
-									switch (ty)
-									{
-										case "i": cakers = int.class;
-										case "l": cakers = long.class;
-										case "f": cakers = float.class;
-										case "d": cakers = double.class;
-										case "a": cakers = Object.class;
-									}
-									String var = stuff.replaceAll("load(.+)", "$1");
-									if(var.equals(""))
-									{
-										int index = (int)st.pop();
-										st.push(cakers.cast(localvars.get(index)));
-									}
-									else
-									{
-										int index = Integer.parseInt(var);
-										st.push(cakers.cast(localvars.get(index)));
-									}
-									continue;
+									short one = sc.nextShort();
+									st.push(one);
+									System.out.println("The stack is now: "+st);
 								}
-								if(stuff.matches("store"))
+								//opcodes : 11
+								if(cake.equals("sipush("))
 								{
-									String var = stuff.replaceAll("store(.+)", "$1");
-									if(var.equals(""))
+									short one = sc.nextShort();
+									short two = sc.nextShort();
+									short jake = (short)((one << 8) | (two & 0xff));
+											//(short)(one << 8 + two);
+									st.push(jake);
+									
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 3B - 4E
+								if(cake.matches(".store_.+"))
+								{
+									/*
+									 * String type = cake.replaceAll("(.)store_.+", "$1");
+									 *
+									 * not terribly sure if this matters at all, but here it is.
+									 * if(type.equals("i"))
+									 * {
+									 * 	;
+									 * }
+									 * if(type.equals("l"))
+									 * {
+									 *			;
+									 * }
+									 * if(type.equals("f"))
+									 * {
+									 *			;
+									 * }
+									 * if(type.equals("d"))
+									 * {
+									 *	;
+									 * }
+									 */
+									
+									int index = Integer.parseInt(cake.replaceAll(".store_(.+)", "$1"));
+									
+									String name = "";
+									String vartype = "";
+									for(Attribute f : mi.attrs)
 									{
-										String ls = stuff.replaceAll("\\((.+)\\)", "$1");
-										localvars.add(Integer.parseInt(ls), st.pop());
+										if(f instanceof Code)
+										{
+											for(Attribute j : ((Code) f).attributes)
+											{
+												if(j instanceof LocalVariableTable)
+												{
+													LocalVariableTable lvt = (LocalVariableTable)j;
+													name = lvt.getVariables()[index].getLocalVariableName();
+													vartype = lvt.getVariables()[index].getVariableType();
+													vartype += " ";
+													
+													if(localvars.containsValue(lvt.getVariables()[index].getLocalVariableName()))
+														vartype= "";
+													localvars.put(index, name);
+												}
+											}
+										}
 									}
-									else
+									
+									fullstuff += "\t\t"+vartype +name+" = " + st.pop()+";\n";
+									
+									
+									System.out.println("The stack is now: "+st);
+									System.out.println("The local variables are now: "+localvars);
+								}
+								//opcodes : 36 - 3A
+								if(cake.matches(".store"))
+								{
+									int index = sc.nextInt();
+									
+									String vartype = "";
+									String name = "";
+									for(Attribute f : mi.attrs)
 									{
-										int index = Integer.parseInt(var);
-										localvars.add(index, st.pop());
+										if(!(f instanceof Code))
+											continue;
+										for(Attribute j : ((Code) f).attributes)
+										{
+											if(j instanceof LocalVariableTable)
+											{
+												LocalVariableTable lvt = (LocalVariableTable)j;
+												name = lvt.getVariables()[index].getLocalVariableName();
+												vartype = lvt.getVariables()[index].getVariableType();
+												vartype += " ";
+												
+												if(localvars.containsValue(lvt.getVariables()[index].getLocalVariableName()))
+													vartype= "";
+												localvars.put(index, name);
+											}
+										}
 									}
-									continue;
+									fullstuff += vartype + name+" = " + st.pop();
+									System.out.println("The stack is now: "+st);
+									System.out.println("The local variables are now: "+localvars);
+								}
+								//opcodes : 1A - 2D
+								if(cake.matches(".load_.+"))
+								{
+									int index = Integer.parseInt(cake.replaceAll(".load_(.+)", "$1"));
+									st.push(localvars.get(index));
+									
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 12
+								if(cake.equals("ldc("))
+								{
+									short jake = sc.nextShort();
+									System.out.println("LDC LOADED: "+cpool.get(jake-1));
+									st.push(cpool.get(jake-1).getValueAsString(cpool));
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 13 - 14
+								if(cake.matches("ldc.+w"))
+								{
+									short uno = sc.nextShort();
+									short dos = sc.nextShort();
+									short index = (short)(uno << 8 + dos);
+									System.out.println("LDC LOADED: "+cpool.get(index-1));
+									st.push(cpool.get(index-1).getValueAsString(cpool));
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 58 - 59
+								if(cake.matches("pop2?"))
+								{
+									st.pop();
+									if(cake.endsWith("2"))
+										st.pop();
+								}
+								if(cake.equals("putstatic("))
+								{
+									short uno = sc.nextShort();
+									short dos = sc.nextShort();
+									short index = (short)((uno << 8) + dos);
+									
+									FieldRefInfo fri = (FieldRefInfo)cpool.get(index-1);
+									fullstuff += "\t\t"+fri.getName(cpool) + " = " + st.pop() + ";";
+								}
+								//opcodes : 59
+								if(cake.equals("dup"))
+								{
+									st.push(st.peek());
+									System.out.println("The stack is now : "+st);
+								}
+								//opcodes : 5A - 5B
+								if(cake.matches("dup_x."))
+								{
+									int num = Integer.parseInt(cake.replaceAll("dup_x(.)","$1"));
+									Object fst = st.pop();
+									Object snd = st.pop();
+									Object trd = null;
+									if(num == 1)
+										st.push(snd);
+									else 
+									{
+										trd = st.pop();
+										st.push(trd);
+									}
+									st.push(fst);
+									st.push(snd);
+									if(num == 2)
+										st.push(trd);
+								}
+								//opcodes : 5C
+								if(cake.equals("dup2"))
+								{
+									Object one = st.pop();
+									Object two = st.peek();
+									st.push(one);
+									st.push(two);
+									st.push(one);
+								}
+								//opcodes : 5D
+								if(cake.equals("dup2_x1"))
+								{
+									Object three = st.pop();
+									Object two = st.pop();
+									Object one = st.pop();
+									st.push(two);
+									st.push(one);
+									st.push(three);
+									st.push(two);
+									st.push(one);
+								}
+								//opcodes : 5E
+								if(cake.equals("dup2_x2"))
+								{
+									Object four = st.pop();
+									Object three = st.pop();
+									Object two = st.pop();
+									Object one = st.pop();
+									st.push(two);
+									st.push(one);
+									st.push(four);
+									st.push(three);
+									st.push(two);
+									st.push(one);
+								}
+								//opcodes : 5F
+								if(cake.equals("swap"))
+								{
+									Object a = st.pop();
+									Object b = st.pop();
+									st.push(b);
+									st.push(a);
+								}
+								//opcodes : 60 -63
+								if(cake.matches(".add"))
+								{
+									st = writeOperation(" + ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 64 - 67
+								if(cake.matches(".sub"))
+								{
+									st = writeOperation(" - ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 68 - 6B
+								if(cake.matches(".mul"))
+								{
+									st = writeOperation(" * ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 6C - 6F
+								if(cake.matches(".div"))
+								{
+									st = writeOperation(" / ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 70 - 73
+								if(cake.matches(".rem"))
+								{
+									st = writeOperation(" % ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 78 - 79
+								if(cake.matches(".shl"))
+								{	
+									st = writeOperation(" << ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 7A - 7B
+								if(cake.matches(".shr"))
+								{
+									st = writeOperation(" >> ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 7C - 7D
+								if(cake.matches(".ushr"))
+								{
+									st = writeOperation(" >>> ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 7E - 7F
+								if(cake.matches(".and"))
+								{
+									st = writeOperation(" & ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 80 - 81
+								if(cake.matches(".or"))
+								{
+									st = writeOperation(" | ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 82 - 83
+								if(cake.matches(".xor"))
+								{
+									st = writeOperation(" ^ ",st);
+									System.out.println("The stack is now: "+st);
+								}
+								//opcodes : 85 - 93
+								if(cake.matches(".2."))
+								{
+									HashMap<String,String> jake = new HashMap<>();
+									jake.put("i", "int");
+									jake.put("d", "double");
+									jake.put("f", "float");
+									jake.put("l", "long");
+									jake.put("b", "byte");
+									jake.put("c", "char");
+									jake.put("s", "short");
+									String res = jake.get(cake.replaceAll(".2(.)","$1"));
+									st.push("("+res+")"+st.pop());
+								}
+								if(cake.matches("lcmp\\("))
+									st.push(st.pop() + " > "+st.pop());
+								if(cake.matches(".cmp."))
+								{
+									char add = '>';
+									if(cake.charAt(cake.length() - 1) == 'l')
+									{
+										add = '<';
+									}
+									
+									st.push(st.pop() + " "+add + " "+st.pop());
+								}
+								//opcodes : AC - B0
+								if(cake.matches(".return"))
+									fullstuff += "\t\treturn "+st.pop()+";";
+								//opcodes : B2
+								if(cake.equals("return("))
+									fullstuff += "\t\treturn;";
+								if(cake.equals("newarray("))
+								{
+									String type = arraytags.get(sc.nextInt());
+									int dimensions = (int)st.pop();
+									st.push("new "+type + "["+dimensions+"]");
+								}
+								if(cake.equals("new("))
+								{
+									short one = sc.nextShort();
+									short two = sc.nextShort();
+									short index = (short)((one << 8) + two);
+									ClassInfo ci = (ClassInfo)cpool.get(index - 1);
+									st.push("new "+ci.getValueAsString(cpool));
+								}
+								if(cake.matches("invokespecial"))
+								{
 								}
 							}
+							fullstuff += "\n\t}\n";
 							sc.close();
 						}
-					}
+					}	
 				}
-				else
-					fullstuff += "\t"+mi.getAccess() + " "+mi.getReturnType()+ " " +mi.getName()+"("+mi.getParameters()+")"+";\n";
 			}
+			fullstuff += "}\n";
 		}
-		fullstuff += "}\n";
 		
 		fullstuff = fullstuff.replaceAll(pack+"\\.", "");
 		fullstuff = fullstuff.replaceAll("java.lang.", "");
+		
+		for(int i = 0; i < 20;i++)
+			System.out.println();
+		
 		System.out.println(fullstuff);
+		
+		System.out.println(cpool.get(16));
+	}
+	
+	public static Stack<Object> writeOperation(String op, Stack<Object> stack)
+	{
+		Object one = stack.pop();
+		Object two = stack.pop();
+		stack.push(two + op + one);
+		return stack;
 	}
 	
 	/**
@@ -598,7 +1033,7 @@ public class Decompiler implements AccessFlags,ConstantTags
 	 * @param bytes
 	 * @return the String, in hex, representation of this Object
 	 */
-	public static String bytesToHex(byte[] bytes) 
+	public static String bytesToHex(byte[] bytes,boolean b) 
 	{
 	    final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 	    char[] hexChars = new char[bytes.length * 2];

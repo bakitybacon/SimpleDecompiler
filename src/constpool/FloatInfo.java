@@ -9,7 +9,7 @@ import java.nio.*;
  * @author Fleur
  *
  */
-public class FloatInfo implements ConstantType 
+public class FloatInfo implements ConstantType, NumInfo
 {
 	/**
 	 * The amount of bytes needed for this class
@@ -95,5 +95,10 @@ public class FloatInfo implements ConstantType
 	public String toString()
 	{
 		return getClass().getSimpleName() + ": "+getValueAsString(null);
+	}
+	@Override
+	public String getString() 
+	{
+		return getValueAsString(null);
 	}
 }

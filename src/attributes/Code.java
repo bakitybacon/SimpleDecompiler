@@ -4,7 +4,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -56,6 +56,7 @@ public class Code implements Attribute
 	 * 
 	 */
 	public final short[] codeshorts;
+	public final byte[] codebytes;
 	/**
 	 * A simple constructor.
 	 * @param maxstack Highest stack amount
@@ -79,6 +80,7 @@ public class Code implements Attribute
 		this.cp = cp;
 		parseValues(cp);
 		codeshorts = byteArrayToShortArray(codetable);
+		codebytes = codetable;
 		parseOpCodes();
 	}
 	
@@ -114,6 +116,7 @@ public class Code implements Attribute
 		this.cp = cp;
 		parseValues(cp);
 		codeshorts = byteArrayToShortArray(codetable);
+		codebytes = codetable;
 		parseOpCodes();
 	}
 	/**
@@ -177,7 +180,7 @@ public class Code implements Attribute
 		}
 	}
 	
-	public short[] byteArrayToShortArray(byte[] b)
+	public static short[] byteArrayToShortArray(byte[] b)
 	{
 	    short[] shorts = new short[b.length];
 
@@ -212,20 +215,16 @@ public class Code implements Attribute
 		byte[] thi = codetable;
 		short pos = 0;
 		HashMap<Short,String> daft = OpCodeLength.getHash();
-		System.out.println("------------ STARTING METHOD -----------");
 		while(pos < codetable.length)
 		{
 			short x = codeshorts[pos];
-			System.out.println("The length is :"+OpCodeLength.getLength(x, thi, pos));
 			System.out.println("The opcode is :"+daft.get(x));
 			pos += 1 + OpCodeLength.getLength(x, thi, pos);
-			System.out.println("Position:" + pos);
-			System.out.println("this length :"+thi.length);
+			
 			if(thi.length == 0)
 				break;
 			thi = Arrays.copyOfRange(thunk,pos,thunk.length);
 		}
-		System.out.println("-------------- END METHOD --------------");
 	}
 	public String getOpCodes()
 	{
@@ -240,10 +239,14 @@ public class Code implements Attribute
 			cake += daft.get(x);
 			if(OpCodeLength.getLength(x, thi, pos) > 0)
 			{
-				cake += "(";
+				cake += "(\n";
 				for(int i = 1 ; i <= OpCodeLength.getLength(x,thi,pos);i++)
-					cake += codeshorts[pos + i] +", ";
-				cake += ")";
+				{
+					short corn = codeshorts[pos+i];
+					cake += corn +"\n";
+				}
+				cake = cake.substring(0,cake.length()-1);
+				cake += "\n)";
 			}
 			cake += "\n";
 			pos += 1 + OpCodeLength.getLength(x, thi, pos);
@@ -252,5 +255,52 @@ public class Code implements Attribute
 			thi = Arrays.copyOfRange(thunk,pos,thunk.length);
 		}
 		return cake;
+	}
+	public static byte[] shortToBytes(short c)
+	{
+		byte[] jolly = new byte[2];
+		jolly[0] = (byte) (c & 0xFF);
+		jolly[1] = (byte) ((c >>> 8) & 0xFF);
+		ByteBuffer b = ByteBuffer.allocate(2);
+		b.putShort(c);
+		b.flip();
+		return b.array();
+	}
+	
+	public static byte[] toPrimitive(Byte[] ba)
+	{
+		byte[] ret = new byte[ba.length];
+		for(int i = 0; i < ba.length; i++)
+		{
+			ret[i] = ba[i];
+		}
+		return ret;
+	}
+	
+	public static void main(String[]args)
+	{
+		short c = 16300;
+		
+		short[] chuck = new short[]{12,180,3333,0xFAC,0b1110111,(short)013,42,256};
+	
+		System.out.println(Arrays.toString(shortToBytes(c)));
+		System.out.println(ByteBuffer.wrap(shortToBytes(c)).getShort());
+		
+		ArrayList<Byte> bacon = new ArrayList<>();
+		
+		for(short s : chuck)
+		{
+			bacon.add((shortToBytes(s)[0]));
+			bacon.add((shortToBytes(s)[1]));
+		}
+		
+		Byte[] jaaon = new Byte[bacon.size()];
+	    bacon.toArray(jaaon);
+	    
+	    byte[] jake = toPrimitive(jaaon);
+
+		System.out.println(Arrays.toString(jake));
+		System.out.println(Arrays.toString(byteArrayToShortArray(jake)));
+		System.out.println(Byte.MAX_VALUE);
 	}
 }

@@ -3,6 +3,8 @@ package attributes;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import others.InfoParser;
+
 import constpool.ConstantPool;
 import constpool.UTF8Info;
 
@@ -14,6 +16,7 @@ import constpool.UTF8Info;
  */
 public class LocalVariableTable implements Attribute
 {
+	public LocalVariableTable(){vars=null;variables=null;cp=null;}
 	/**
 	 * The opcodes
 	 */
@@ -36,7 +39,7 @@ public class LocalVariableTable implements Attribute
 	 * More of a convenience class
 	 * @author Fleur
 	 */
-	class LocalVariable
+	public class LocalVariable
 	{
 		/**
 		 * The index into the ConstantPool of the name
@@ -117,6 +120,14 @@ public class LocalVariableTable implements Attribute
 		{
 			return getClass().getName() + "[" + parseValues() + "]";
 		}
+		public String getLocalVariableName()
+		{
+			return ((UTF8Info)cp.get(nind-1)).getValueAsString(null);
+		}
+		public String getVariableType() 
+		{
+			return InfoParser.getVariableType(((UTF8Info)cp.get(dind-1)).getValueAsString(null));
+		}
 	}
 	
 	/**
@@ -164,6 +175,11 @@ public class LocalVariableTable implements Attribute
 			variables[i] = tom;
 			pos += 10;
 		}
+	}
+	
+	public LocalVariable[] getVariables()
+	{
+		return variables;
 	}
 	
 	/**
